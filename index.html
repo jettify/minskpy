@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="en">
+
+	<head>
+		<meta charset="utf-8">
+
+		<title>Minsk Python Meetup 2016</title>
+
+		<meta name="description" content="Asyncio">
+		<meta name="author" content="Nikolay Novik">
+
+		<meta name="apple-mobile-web-app-capable" content="yes">
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
+
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/white.css" id="theme">
+		<link rel="stylesheet" href="css/my.css">
+
+		<!-- Code syntax highlighting -->
+        <link class="codestyle" rel="stylesheet" href="css/tomorrow.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+
+		<!--[if lt IE 9]>
+		<script src="lib/js/html5shiv.js"></script>
+		<![endif]-->
+	</head>
+
+	<body>
+
+		<div class="reveal">
+			<!-- Any section element inside of this container is displayed as a slide -->
+			<div class="slides">
+<!-- ####################################################################  -->
+               <section id="intro" class="aboutme">
+                    <img src='images/ava5.png' style="background:none; border:none; box-shadow:none;">
+                    <h1></h1>
+                    <h1></h1>
+
+					<h3>Building Apps With Asyncio</h3>
+					<p> Nikolay Novik</p>
+					<p>Minsk Python Meetup 2016</p>
+			   </section>
+<!-- ####################################################################  -->
+				<section id="aobut_me">
+                    <h3>I am ...</h3>
+                    <ul>
+                        <li><b>Software Engineer</b>: at DataRobot Ukraine</li>
+                        <li><b>Github</b>: <a href="http://github.com/jettify">https://github.com/jettify</a></li>
+                        <li><b>Twitter</b>: <a href="https://twitter.com/isinf">https://twitter.com/isinf</a></li>
+                        <li><b>My Projects</b>:
+                            <ul>
+                                <!-- TODO: add link to each project -->
+                                <li><i>database clients</i>: <code>aiomysql, aioobc, aiogibson</code></li>
+                                <li><i>web and etc</i>: <code>aiohttp_debugtoolbar, aiobotocore,
+                                    aiohttp_mako, aiohttp_admin</code></li>
+                            </ul>
+                        </li>
+                    </ul>
+				</section>
+<!-- ####################################################################  -->
+				<section id="poll"> <h5> Poll: you and asyncio</h5>
+                    <img src='images/batman.jpg'>
+                    <ol>
+                        <li>I am using asyncio/aiohttp extensively</li>
+                        <li>I am using Twisted, Tornado, gevent etc. extensively</li>
+                        <li>I think async programming is kinda cool</li>
+                    </ol>
+				</section>
+<!-- ####################################################################  -->
+				<section>
+					<h6>Agenda</h6>
+                    <ol>
+                        <li>Motivation, what problem does asynchronous programming solve?</li>
+                        <li>Asyncio application design choices</li>
+                        <li>Tips and tricks and things to consider in your app</li>
+                        <li>Asyncio pitfalls</li>
+                    </ol>
+				</section>
+<!-- ####################################################################  -->
+				<section>
+					<h6>Motivation. Why we might want to write asynchronous code?</h6>
+                    <ul>
+                        <li>One can do useful work instead of blocking</li>
+                        <li>Simpler code due to explicit context switches</li>
+                        <li>Idle protocols (websockets) work out of box</li>
+                        <li>Encourage good development practices</li>
+                        <li>Bunch of shiny new frameworks</li>
+                    </ul>
+				</section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Also we do SOA (<strike>microservices</strike>) this days...</h6>
+
+                    <p><img src="images/microservices.png" height=450px></p>
+                    <p>SOA implies a lot of network communications.</p>
+                    <!-- <a href="https://www.tigerteam.dk/2014/microservices-its-not-only-the-size-that-matters-its-also-how-you-use-them-part-4/">image source</a> -->
+				</section>
+<!-- ####################################################################  -->
+				<section>
+					<h6>Sync does not scale (TM)</h6>
+                    <pre><code class="hljs python" data-trim>
+from django.http import HttpResponse
+def my_view(request):
+    # blocks thread
+    r = requests.get('https://s3-us-west-2.amazonaws.com/dataintake/{uid}')
+    data = r.json()
+    # ...
+    return HttpResponse(status=200)
+                    </code></pre>
+                    <pre><code class="hljs python" data-trim>
+
+from aiohttp import web
+async def my_view(request):
+    session = request.app['session']
+    # context switch here
+    r = await session.get('https://s3-us-west-2.amazonaws.com/dataintake/{uid}')
+    data = await r.json()
+    return web.Response(status=200)
+                    </code></pre>
+                    Amazon S3 API could return response in over 9000s! In async case
+                    only one response blocked, in sync - entire thread.
+				</section>
+<!-- ####################################################################  -->
+				<section>
+					<h6>Why asyncio? One event loop to rule them all!</h6>
+                    <p><img src="images/rule.jpg" height=400px></p>
+                    <ul>
+                        <li>Tornado and Twisted support asyncio event loop</li>
+                        <li>Just imaging: you can use <code>aiopg, aiomysql, aioredis</code> in any async framework!</li>
+                    </ul>
+				</section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Asyncio application design choices</h6>
+                    <ul>
+                        <li>Event loop are spins in <b>main</b> thread, it schedules blocking tasks using
+                            thread pool.</li>
+                        <li>Embedded event loop, <b>main</b> thread gives control to the event loop
+                            for finite amount of time, and then executes regular sync code.</li>
+                        <li>Sync code executed in <b>main</b> thread, but event loop spinning
+                            in separate thread.</li>
+                    </ul>
+                </section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Asyncio is in main thread</h6>
+                    <img src="images/asyncio_leader.svg" height="500px">
+                    <p>Most popular and convenient asyncio mode in the wild.</p>
+                </section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Asyncio is in main thread. Blocking calls are in ThreadPool</h6>
+					<pre><code class="hljs python" data-trim>
+import asyncio
+from pyodbc import connect
+
+loop = asyncio.get_event_loop()
+executor = ThreadPoolExecutor(max_workers=4)
+async def test_example():
+    dsn = 'Driver=SQLite;Database=sqlite.db'
+    conn = await loop.run_in_executor(executor, connect, dsn)
+    cursor = await loop.run_in_executor(executor, conn.cursor)
+    conn = await loop.run_in_executor(executor, cursor.execute,
+                                      'SELECT 42;')
+
+loop.run_until_complete(test_example())
+					</code></pre>
+                    Easy to use but a bit strange interface,
+                    default executor has 4 worker threads.
+
+                </section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>ThreadPool notes</h6>
+                    <ul>
+                        <li>Convenient workaround for blocking calls</li>
+                        <li>No way to kill thread if task stuck inside</li>
+                        <li>C extensions could consumer a lot of virtual
+                            memory due to thread arenas, may cause problems
+                            with docker/yarn</li>
+                        <li>Pool size in most cases should be proportional to
+                            number of cores of machine that hosts resource
+                            with blocking client</li>
+                    </ul>
+
+                </section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Asyncio is in main thread. Blocking code in ProcessPool</h6>
+					<pre><code class="hljs python" data-trim>
+
+loop = asyncio.get_event_loop()
+executor = ProcessPoolExecutor(max_workers=3)
+
+def is_prime(n):
+    if n % 2 == 0: return False
+    sqrt_n = int(math.floor(math.sqrt(n)))
+    for i in range(3, sqrt_n + 1, 2): if n % i == 0: return False
+    return True
+
+async def go():
+    result = await loop.run_in_executor(
+        executor, is_prime, 112272535095293)
+loop.run_until_complete(go(loop, executor))
+
+					</code></pre>
+                    <code>ProcessPoolExecutor</code> has same interface as
+                    <code>ThreadPoolExecutor</code>
+                </section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>ProcessPool Notes</h6>
+                    <ul>
+                        <li>Processes easy to terminate</li>
+                        <li>Processes consume a lot of memory</li>
+                        <li>IPC is expensive because of serialization issues</li>
+                        <li>Process should be created and warmed as soon as
+                            possible in order not to copy memory due to
+                            <code>fork()</code></li>
+                    </ul>
+                </section>
+
+<!-- ####################################################################  -->
+
+				<section>
+                    <h6>Embedded Asyncio loop</h6>
+                    <img src="images/loop_inside.svg" height="500px">
+                    <p>Application may spin event loop at will, to perform
+                    IO heavy computations.</p>
+                </section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Embedded Asyncio loop. Example</h6>
+					<pre><code class="hljs python" data-trim>
+import asyncio, aiohttp
+
+async def fetch(session, url, loop):
+    async with session.get(url) as resp:
+        data = await resp.text()
+
+def collect_data(url_list):
+    loop = asyncio.get_event_loop()
+
+    session = aiohttp.ClientSession(loop=loop)
+    coros = [fetch(sessiong, u, loop) for u in url_list]
+
+    data = loop.run_until_complete(asyncio.gather(*coros, loop=loop))
+    loop.run_until_complete(session.close())
+    loop.close()
+    return data
+
+def main():
+    url_list = db.fetch_urls()
+    data = collect_data(url_list)
+    process(data)
+					</code></pre>
+                    Scraping  or concurrent upload to external server are most
+                    popular use cases.
+                </section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Do not try this at home!</h6>
+					<pre><code class="hljs python" data-trim>
+import aioredis
+from flask import Flask
+app = Flask(__name__)
+
+loop = asyncio.get_event_loop()
+redis = loop.run_until_complete(aioredis.create_redis(
+    ('localhost', 6379), loop=loop))
+
+@app.route("/")
+def hello():
+    value = loop.run_until_complete(redis.get('my-key'))
+    return "Hello {}!".format(value)
+
+if __name__ == "__main__":
+    app.run()
+					</code></pre>
+                    Using coroutines inside sync code is not always good idea.
+                    In this particular case it slows down database access.
+                </section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Asyncio loop has own separate thread</h6>
+                    <img src="images/sync_leader.svg" height="500px">
+                    <p>Application may delegate IO heavy tasks to dedicated
+                    loop in separate thread.</p>
+                </section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Asyncio loop has own separate thread. Example</h6>
+					<pre><code class="hljs python" data-trim>
+import asyncio, functools
+from threading import Thread, Event
+
+class AioThread(Thread):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.loop, self.event = None, Event()
+
+    def run(self):
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
+        self.loop.call_soon(self.event.set)
+        self.loop.run_forever()
+
+    def add_task(self, coro):
+        fut = asyncio.run_coroutine_threadsafe(coro, loop=self.loop)
+        return fut
+    def finalize(self):
+        self._loop.call_soon_threadsafe(self._loop.stop)
+        self.join()
+					</code></pre>
+                    Make sure you have means to signal that loop has been
+                    started, and you can finalize thread properly
+                </section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Communication with background event loop</h6>
+					<pre><code class="hljs python" data-trim>
+def main():
+    aiothread = AioThread()
+    aiothread.start()
+    aiothread.event.wait()
+
+    loop = aiothread.loop
+    coro = asyncio.sleep(1, loop=loop)
+    future = aiothread.add_task(coro)
+    try:
+        result = future.result(timeout)
+    except asyncio.TimeoutError:
+        print('The coroutine took too long, cancelling the task')
+        future.cancel()
+    except Exception as exc:
+        print('The coroutine raised an exception: {!r}'.format(exc))
+					</code></pre>
+                    Make sure you wait for loop to start. Calling <code>future.cancel()</code>
+                    in main thread will cancel asyncio coroutine in background thread.</li>
+                </section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Real world example: Cassandra python driver</h6>
+					<pre><code class="hljs python" data-trim>
+class TwistedConnection(Connection):
+
+    @classmethod
+    def initialize_reactor(cls):
+        cls._loop = TwistedLoop()
+
+    def add_connection(self):
+        # ...
+    def client_connection_made(self):
+        # ...
+
+    def handle_read(self):
+        self.process_io_buffer()
+
+    def push(self, data):
+        reactor.callFromThread(self.connector.transport.write, data)
+					</code></pre>
+                    Cassandra's <a href="https://github.com/datastax/python-driver/blob/master/cassandra/io/twistedreactor.py">python driver</a>
+                    is sync but connection objects spin event loop, in this case twisted's reactor
+                </section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Bidirectional sync/async communication. Janus queue</h6>
+                    <p><img src="images/janus.jpg" height=400px></p>
+					<pre><code class="hljs python" data-trim>
+queue = janus.Queue(loop=loop)
+await queue.async_q.get()
+queue.sync_q.put(i)
+					</code></pre>
+				</section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Janus queue example</h6>
+					<pre><code class="hljs python" data-trim>
+import asyncio, janus
+
+loop = asyncio.get_event_loop()
+queue = janus.Queue(loop=loop)
+
+def threaded(sync_q):
+    for i in range(100):
+        sync_q.put(i)
+    sync_q.join()
+
+async def async_coro(async_q):
+    for i in range(100):
+        val = await async_q.get()
+        async_q.task_done()
+
+fut = loop.run_in_executor(None, threaded, queue.sync_q)
+loop.run_until_complete(async_coro(queue.async_q))
+loop.run_until_complete(fut)
+					</code></pre>
+                    <code>janus</code> has two APIs for same queue: sync like
+                    <code>queue.Queue</code> and async like <code>asyncio.Queue</code>
+                </section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>aiorwlock example</h6>
+					<pre><code class="hljs python" data-trim>
+import asyncio
+import aiorwlock
+
+loop = asyncio.get_event_loop()
+
+@asyncio.coroutine
+def go():
+    rwlock = aiorwlock.RWLock(loop=loop)
+
+    # acquire reader lock
+    with (yield from rwlock.reader_lock):
+        print("inside reader lock")
+        yield from asyncio.sleep(0.1, loop=loop)
+
+    # acquire writer lock
+    with (yield from rwlock.writer_lock):
+        print("inside writer lock")
+        yield from asyncio.sleep(0.1, loop=loop)
+
+loop.run_until_complete(go())
+                    </code></pre>
+                    <code>aiorwlock</code> has both: shared reader lock and exclusive writer lock
+                </section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Ok. How I can test async code?</h6>
+					<pre><code class="hljs python" data-trim>
+
+from aiohttp import web
+
+async def hello(request):
+    return web.Response(body=b'Hello, world')
+
+def create_app(loop):
+    app = web.Application(loop=loop)
+    app.router.add_route('GET', '/', hello)
+    return app
+
+async def test_hello(test_client):
+    client = await test_client(create_app)
+    resp = await client.get('/')
+    assert resp.status == 200
+    text = await resp.text()
+    assert 'Hello, world' in text
+                    </code></pre>
+                    Both client and server work in same thread, no need to run code in separate processes. Functional tests easy to write as unit tests!
+				</section>
+
+<!-- ####################################################################  -->
+				<section>
+                    <h6>For testing purposes it is possible to run multiple services in same loop!</h6>
+					<pre><code class="hljs python" data-trim>
+
+@pytest.fixture
+def hdfs_proxy_headers(loop, take_unused_port, hdfs_service):
+    proxy_namenode = FakeNameNode(loop, other_unused_port)
+    proxy_datanode = FakeDataNode(loop)
+    # NAME node fake service
+    fake_namenode_app = web.Application(loop=loop)
+    fake_namenode_app.router.add_route('GET', '/{w:.*}', proxy_namenode.proxy_download)
+    # DATA node fake service
+    fake_datanode_app = web.Application(loop=loop)
+    fake_datanode_app.router.add_route('POST', '/{w:.*}', proxy_datanode.proxy_upload)
+
+    run = loop.run_until_complete
+    handler1 = fake_namenode_app.make_handler()
+    srv1 = run(loop.create_server(handler1, host, unused_port))
+
+    handler2 = fake_datanode_app.make_handler()
+    srv2 = run(loop.create_server(handler2, host, other_unused_port))
+
+    url = 'http://{}:{}'.format(host, unused_port)
+    return url
+					</code></pre>
+                    Example of fake HDFS running in one thread.
+				</section>
+
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Asyncio tips and tricks</h6>
+                    <img src="images/funny.jpg" height="600px">
+				</section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>TIP: Think about graceful shutdown early</h6>
+                    <p><img src="images/kill-9-1.jpg"></p>
+				</section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Asyncio graceful shutdown</h6>
+					<pre><code class="hljs python" data-trim>
+import asyncio, signal
+
+is_working = True
+async def do_work(loop):
+    while is_working:
+        await asyncio.sleep(1, loop=loop)
+
+def signal_handler(loop):
+    loop.remove_signal_handler(signal.SIGTERM)
+    is_working = False
+
+loop = asyncio.get_event_loop()
+loop.add_signal_handler(signal.SIGTERM, signal_handler, loop)
+loop.run_until_complete(do_work(loop))
+					</code></pre>
+                    <code>asyncio</code> will warn you with bunch of tracebacks
+                    if you do not do proper shutdown.
+				</section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Graceful shutdown aiohttp edition </h6>
+                    <pre><code class="hljs python" data-trim>
+
+def shutdown(loop):
+    loop.remove_signal_handler(signal.SIGTERM)
+    loop.stop()
+
+loop.add_signal_handler(signal.SIGTERM, shutdown, loop)
+
+handler = app.make_handler()
+f = loop.create_server(handler, '0.0.0.0', 8080)
+srv = loop.run_until_complete(f)
+
+loop.run_forever()
+
+# kill accepting sockets
+srv.close()
+loop.run_until_complete(srv.wait_closed())
+
+loop.run_until_complete(handler.finish_connections(60.0))
+loop.close()
+                    </code></pre>
+                    Now you can be sure that all requests are safe and served
+                    and new requests is not accepted
+
+				</section>
+
+<!-- #################################################################### -->
+ <section> <h6>Be a good citizen! Shutdown db connection pools
+                        in your aiohttp app</h6>
+					<pre><code class="hljs python" data-trim>
+async def init(loop):
+    # setup application and extensions
+    app = web.Application(loop=loop)
+
+    # create connection to the database
+    pg = await init_postgres(conf['postgres'], loop)
+
+    async def close_pg(app):
+        pg.close()
+        await pg.wait_closed()
+
+    app.on_cleanup.append(close_pg)
+    # ...
+					</code></pre>
+                    <code>aiohttp</code> has handy signal <b>on_cleanup</b> for
+                    database connections, as well as <b>on_shutdown</b> for
+                    websockets
+				</section>
+
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Explicitly finalize background tasks</h6>
+					<pre><code class="hljs python" data-trim>
+class Foo:
+
+    def __init__(self):
+        self._task = asyncio.create_task(self._do_task(),
+        loop=self._loop)
+
+    async def _do_task():
+        await self.set('foo', 'bar')
+        await self.set('baz', 'zap')
+
+    async def _stop_do_task(self):
+        await self._task
+					</code></pre>
+                    May be very tricky! Same approach as thread finalization
+                    should be employed or <code>task.cancel()</code>
+                </section>
+
+
+<!-- ####################################################################  -->
+				<section>
+					<h6>Asyncio Pitsfalls</h6>
+                    <p><img src="images/train_fall.jpg" height=550px></p>
+				</section>
+
+<!-- ####################################################################  -->
+				<section>
+					<h6>Keep an eye on StopIteration in python 3.4</h6>
+					<pre><code class="hljs python" data-trim>
+@asyncio.coroutine
+def coro():
+    raise StopIteration('batman')
+
+@asyncio.coroutine
+def coro2():
+    i = iter(range(2))
+    next(i)
+    next(i)
+    next(i)  # raise StopIteration
+    return 'finish'
+
+@asyncio.coroutine
+def go():
+    data = yield from coro()  # batman
+    data = yield from coro2() # None
+					</code></pre>
+                    Raising <code>StopIteration</code> is same as returning
+                    from coroutine, so this could lead to hard of find bugs.
+				</section>
+<!-- ####################################################################  -->
+				<section>
+					<h6>Missed coroutine decorators in python 3.4</h3>
+					<pre><code class="hljs python" data-trim>
+def foo(loop):
+    yield from asyncio.sleep(1, loop=loop)
+
+@asyncio.coroutine
+def bar(loop):
+    yield from asyncio.sleep(1, loop=loop)
+
+async def zap(loop):
+    await asyncio.sleep(1, loop=loop)
+
+loop.run_until_complete(foo(loop))
+loop.run_until_complete(bar(loop))
+loop.run_until_complete(zap(loop))
+
+					</code></pre>
+                    All three examples work as expeted, but asyncio will not track
+                    first generator as coroutine as result will NOT complain
+                    if you forget to yield it.
+				</section>
+<!-- ####################################################################  -->
+				<section>
+					<h6>Think 7 times before using task.cancel()</h6>
+					<pre><code class="hljs python" data-trim>
+async def foo(redis, loop):
+    await asyncio.sleep(1, loop=loop)
+    await redis.set("foo", "bar")
+    await redis.set("baz", "zap")
+
+task = loop.create_task(foo(loop))
+task.cancel()
+					</code></pre>
+                    Canceling occurs on <code>yield from/await</code> points,
+                    and may leave data structures in inconsistent state.
+				</section>
+
+<!-- ####################################################################  -->
+				<section>
+					<h1>THE END</h1>
+					<p>
+						<a href="http://jettify.github.io/minskpy">http://jettify.github.io/minskpy</a> <br>
+                    </p>
+				</section>
+<!-- ####################################################################  -->
+
+			</div>
+
+		</div>
+
+		<script src="lib/js/head.min.js"></script>
+		<script src="js/reveal.js"></script>
+
+		<script>
+
+			// Full list of configuration options available at:
+			// https://github.com/hakimel/reveal.js#configuration
+			Reveal.initialize({
+				controls: true,
+				progress: true,
+				history: true,
+				center: true,
+
+				transition: 'slide', // none/fade/slide/convex/concave/zoom
+
+				// Optional reveal.js plugins
+				dependencies: [
+					{ src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+					{ src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+					{ src: 'plugin/zoom-js/zoom.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true }
+				]
+			});
+
+		</script>
+
+	</body>
+</html>
