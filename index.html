@@ -46,9 +46,10 @@
                     <h1></h1>
                     <h1></h1>
 
-					<h3>Building Apps With Asyncio</h3>
+					<h3>Patterns for asyncio applications</h3>
 					<p> Nikolay Novik</p>
-					<p>Minsk Python Meetup 2016</p>
+                    <p><a href="http://github.com/jettify">https://github.com/jettify</a></p>
+					<p>Minsk Python Meetup Oct 2016</p>
 			   </section>
 <!-- ####################################################################  -->
 				<section id="aobut_me">
@@ -68,8 +69,8 @@
                     </ul>
 				</section>
 <!-- ####################################################################  -->
-				<section id="poll"> <h5> Poll: you and asyncio</h5>
-                    <img src='images/batman.jpg'>
+				<section id="poll"> <h5> Poll: you and web frameworks</h5>
+                    <img src='images/frameworks.png'>
                     <ol>
                         <li>I am using asyncio/aiohttp extensively</li>
                         <li>I am using Twisted, Tornado, gevent etc. extensively</li>
@@ -138,6 +139,15 @@ async def my_view(request):
                         <li>Tornado and Twisted support asyncio event loop</li>
                         <li>Just imaging: you can use <code>aiopg, aiomysql, aioredis</code> in any async framework!</li>
                     </ul>
+				</section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>asyncio is mature framework</h6>
+
+                    <p><img src="images/fb.png" height=400px></p>
+                    Library is used by big companies like Facebook and WG
+
+                    <!-- <a href="https://www.tigerteam.dk/2014/microservices-its-not-only-the-size-that-matters-its-also-how-you-use-them-part-4/">image source</a> -->
 				</section>
 <!-- ####################################################################  -->
 				<section>
@@ -246,6 +256,7 @@ import asyncio, aiohttp
 
 async def fetch(session, url, loop):
     async with session.get(url) as resp:
+
         data = await resp.text()
 
 def collect_data(url_list):
@@ -437,67 +448,79 @@ loop.run_until_complete(go())
                 </section>
 <!-- ####################################################################  -->
 				<section>
-                    <h6>Ok. How I can test async code?</h6>
+                    <h6>Testing asyncio application</h6>
+                    <p><img src="images/tests.png" height=400px></p>
+                    <p>Testing and debugging other big advantage of asyncio!</p>
+                    <ul>
+                        <li>Coroutines are debuggable thanks to asyncio</li>
+                        <li>It is possible to prototype and tests all services in one thread</li>
+                        <li>Functional tests almost as cheap as unit tests</li>
+                    </ul>
+                </section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Ok. Show me ther trick with two servers?</h6>
 					<pre><code class="hljs python" data-trim>
-
 from aiohttp import web
 
-async def hello(request):
-    return web.Response(body=b'Hello, world')
+async def pong(request):
+    import pdb; pdb.set_trace()
+    return web.Response(body=b'pong')
 
-def create_app(loop):
-    app = web.Application(loop=loop)
-    app.router.add_route('GET', '/', hello)
-    return app
-
-async def test_hello(test_client):
-    client = await test_client(create_app)
-    resp = await client.get('/')
-    assert resp.status == 200
-    text = await resp.text()
-    assert 'Hello, world' in text
+app_pong = web.Application(loop=loop)
+app_pong.router.add_route('GET', '/', pong)
                     </code></pre>
-                    Both client and server work in same thread, no need to run code in separate processes. Functional tests easy to write as unit tests!
+					<pre><code class="hljs python" data-trim>
+
+async def ping(request):
+    import pdb; pdb.set_trace()
+    async with session.get("http://127.0.0.1:8080/pong") as resp:
+        data = await resp.text()
+    return web.Response(body=b'OK')
+
+app_ping = web.Application(loop=loop)
+app_ping.router.add_route('GET', '/', ping)
+
+                    </code></pre>
+                    Both aiohttp applications and client work in same thread!
 				</section>
 
 <!-- ####################################################################  -->
 				<section>
-                    <h6>For testing purposes it is possible to run multiple services in same loop!</h6>
+                    <h6>Spin two aiohttp servers in one loop</h6>
 					<pre><code class="hljs python" data-trim>
-
-@pytest.fixture
-def hdfs_proxy_headers(loop, take_unused_port, hdfs_service):
-    proxy_namenode = FakeNameNode(loop, other_unused_port)
-    proxy_datanode = FakeDataNode(loop)
-    # NAME node fake service
-    fake_namenode_app = web.Application(loop=loop)
-    fake_namenode_app.router.add_route('GET', '/{w:.*}', proxy_namenode.proxy_download)
-    # DATA node fake service
-    fake_datanode_app = web.Application(loop=loop)
-    fake_datanode_app.router.add_route('POST', '/{w:.*}', proxy_datanode.proxy_upload)
-
+def main(loop, app_ping, app_pong):
     run = loop.run_until_complete
-    handler1 = fake_namenode_app.make_handler()
+
+    handler1 = app_ping.make_handler()
     srv1 = run(loop.create_server(handler1, host, unused_port))
 
-    handler2 = fake_datanode_app.make_handler()
-    srv2 = run(loop.create_server(handler2, host, other_unused_port))
-
-    url = 'http://{}:{}'.format(host, unused_port)
-    return url
+    handler2 = app_pong.make_handler()
+    srv2 = run(loop.create_server(
+        handler2, host, other_unused_port))
 					</code></pre>
-                    Example of fake HDFS running in one thread.
+                    Run two or more servers in same thread is trivial task.
+				</section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Test case for two apps in same thread</h6>
+					<pre><code class="hljs python" data-trim>
+@pytest.mark.run_loop
+async def test_two_apps(loop, ping_port, pong_port):
+    url = "http://127.0.0.1:{}/pong".format(ping_port)
+    async with session.get(url) as resp:
+        data = await resp.text()
+        assert data
+
+					</code></pre>
+                    Client works with same event loop and thread as other 
+                    aiohttp apps
 				</section>
 
 <!-- ####################################################################  -->
 				<section>
                     <h6>Asyncio tips and tricks</h6>
                     <img src="images/funny.jpg" height="600px">
-				</section>
-<!-- ####################################################################  -->
-				<section>
-                    <h6>TIP: Think about graceful shutdown early</h6>
-                    <p><img src="images/kill-9-1.jpg"></p>
 				</section>
 <!-- ####################################################################  -->
 				<section>
@@ -666,7 +689,7 @@ task.cancel()
 
 <!-- ####################################################################  -->
 				<section>
-					<h1>THE END</h1>
+					<h2>Thank you!</h2>
 					<p>
 						<a href="http://jettify.github.io/minskpy">http://jettify.github.io/minskpy</a> <br>
                     </p>
