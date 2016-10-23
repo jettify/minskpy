@@ -695,6 +695,70 @@ task.cancel()
                     </p>
 				</section>
 <!-- ####################################################################  -->
+               <section class="aboutme">
+                    <img src='images/ava5.png' style="background:none; border:none; box-shadow:none;">
+                    <h1></h1>
+                    <h1></h1>
+
+					<h3>Introducing aiohttp_admin</h3>
+					<h5>lightning talk</h5>
+			   </section>
+<!-- ####################################################################  -->
+				<section>
+					<h6>Motivation. Why we might want to have "automatic" admin interface?</h6>
+                    <ul>
+                        <li>For small web applications or micro services, where custom admin interface is overkill.</li>
+                        <li>To give a manager something to play with while proper admin interface is not ready.</li>
+                        <li>Could be solution if you absolutely hate to write a lot of <code>js/html</code> but have to</li>
+                    </ul>
+				</section>
+<!-- ####################################################################  -->
+				<section data-background-image="http://example.com/image.png">
+					<h6>aiohttp_admin overview (Demo)</h6>
+                    <img src="images/admin_main.png" height="600">
+                    <a target="_blank" href="http://127.0.0.1:9000/admin">http://127.0.0.1:9000/admin</a>
+				</section>
+<!-- ####################################################################  -->
+				<section>
+					<h6>aiohttp_admin architecture overview</h6>
+                    <img src="images/aiohttp_admin_design.svg" height="600">
+				</section>
+
+<!-- ####################################################################  -->
+				<section>
+					<h6>Database Layer</h6>
+                    <p>Supported Databases out of the box</p>
+                    <img src="images/mysql.svg" height="150">
+                    <img src="images/pg.png" height="150">
+                    <img src="images/mongo.png" height="130">
+                    <p>ODBC databases (SQLite, MSSQL, Oracle) coming soon</p> using <code>aioodbc</code>
+				</section>
+<!-- ####################################################################  -->
+				<section>
+					<h6>REST Layer</h6>
+                    <ul>
+                        <li><code>Python 3.5+</code> - because async/await stuff</li>
+                        <li><code>aiohttp</code> - as platform and REST framework</li>
+                        <li><code>trafaret</code> - provides validation and model description</li>
+                        <li><code>python-dateutil</code> - for simpler datetime manipulation</li>
+                        <li><code>aiohttp_jinja2</code> - for basic template rendering</li>
+                        <li><code>{aiomysql aiopg sqlalchemy motor}</code> as means of database access</li>
+                    </ul>
+				</section>
+
+<!-- ####################################################################  -->
+				<section>
+					<h6>Frontend Layer</h6>
+					<p>ng-admin is frontend for aiohttp_admin</p>
+                    <ul>
+                        <li><a>ng-admin</a> could be plugged to your RESTFul API to get a complete
+                            administration interface (datagrid, filters, multi-model relationships,
+                            dashboard) in no time.</li>
+                        <li>Beyond simple CRUD, ng-admin lets you build sophisticated GUIs without getting in your way.</li>
+                    </ul>
+                    <pre><img src="images/nd-admin.png"></pre>
+				</section>
+<!-- ####################################################################  -->
 
 			</div>
 
