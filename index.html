@@ -151,6 +151,16 @@ async def my_view(request):
 				</section>
 <!-- ####################################################################  -->
 				<section>
+                    <h6>Ultra fast implementation of asyncio event loop on top of libuv</h6>
+
+                    <p><img src="images/uvloop2.png" height=400px></p>
+                    asyncio could be very fast <a href="https://github.com/MagicStack/uvloop">https://github.com/MagicStack/uvloop</a>
+
+                    <!-- <a href="https://www.tigerteam.dk/2014/microservices-its-not-only-the-size-that-matters-its-also-how-you-use-them-part-4/">image source</a> -->
+				</section>
+
+<!-- ####################################################################  -->
+				<section>
                     <h6>Asyncio application design choices</h6>
                     <ul>
                         <li>Event loop are spins in <b>main</b> thread, it schedules blocking tasks using
@@ -461,7 +471,26 @@ loop.run_until_complete(go())
                 </section>
 <!-- ####################################################################  -->
 				<section>
-                    <h6>Ok. Show me ther trick with two servers?</h6>
+                    <h6>Basic asyncio tests</h6>
+					<pre><code class="hljs python" data-trim>
+def test_raw_insert_with_executemany(self):
+    async def go():
+        conn = await self.connect()
+        await conn.execute(sql)
+    self.loop.run_until_complete(go())
+                    </code></pre>
+					<pre><code class="hljs python" data-trim>
+
+@pytest.mark.run_loop
+async def test_raw_insert_with_executemany(self):
+    conn = await self.connect()
+    await conn.execute(sql)
+                    </code></pre>
+                    You need event loop to spin your coroutines.
+                </section>
+<!-- ####################################################################  -->
+				<section>
+                    <h6>Ok. Show me that trick with two servers?</h6>
 					<pre><code class="hljs python" data-trim>
 from aiohttp import web
 
@@ -521,7 +550,7 @@ async def test_two_apps(loop, ping_port, pong_port):
 
 <!-- ####################################################################  -->
 				<section>
-                    <h6>Asyncio tips and tricks</h6>
+                    <h6>Asyncio tips, tricks and pitfalls</h6>
                     <img src="images/funny.jpg" height="600px">
 				</section>
 <!-- ####################################################################  -->
@@ -598,7 +627,7 @@ async def init(loop):
                     websockets
 				</section>
 
-<!-- ####################################################################  -->
+<!--
 				<section>
                     <h6>Explicitly finalize background tasks</h6>
 					<pre><code class="hljs python" data-trim>
@@ -618,14 +647,7 @@ class Foo:
                     May be very tricky! Same approach as thread finalization
                     should be employed or <code>task.cancel()</code>
                 </section>
-
-
-<!-- ####################################################################  -->
-				<section>
-					<h6>Asyncio Pitsfalls</h6>
-                    <p><img src="images/train_fall.jpg" height=550px></p>
-				</section>
-
+####################################################################  -->
 <!-- ####################################################################  -->
 				<section>
 					<h6>Keep an eye on StopIteration in python 3.4</h6>
@@ -649,6 +671,10 @@ def go():
 					</code></pre>
                     Raising <code>StopIteration</code> is same as returning
                     from coroutine, so this could lead to hard of find bugs.
+                    <p>
+                    <code>from __future__ import generator_stop</code> will raise
+                    <code>RuntimeError</code> instead
+                    </p>
 				</section>
 <!-- ####################################################################  -->
 				<section>
@@ -673,22 +699,6 @@ loop.run_until_complete(zap(loop))
                     first generator as coroutine as result will NOT complain
                     if you forget to yield it.
 				</section>
-<!-- ####################################################################  -->
-				<section>
-					<h6>Think 7 times before using task.cancel()</h6>
-					<pre><code class="hljs python" data-trim>
-async def foo(redis, loop):
-    await asyncio.sleep(1, loop=loop)
-    await redis.set("foo", "bar")
-    await redis.set("baz", "zap")
-
-task = loop.create_task(foo(loop))
-task.cancel()
-					</code></pre>
-                    Canceling occurs on <code>yield from/await</code> points,
-                    and may leave data structures in inconsistent state.
-				</section>
-
 <!-- ####################################################################  -->
 				<section>
 					<h2>Thank you!</h2>
@@ -760,6 +770,33 @@ task.cancel()
                     </ul>
                     <pre><img src="images/nd-admin.png"></pre>
 				</section>
+<!-- ####################################################################  -->
+				<section>
+					<h6>Example Edition View declaration</h6>
+                    Declare edit views for entity in <code>config.js</code>
+                    <pre><code class="hljs javascript" data-trim>
+question.editionView()
+    .title('Edit question')
+    .actions(['list', 'show', 'delete'])
+    .fields([
+        nga.field('id')
+        .editable(false)
+        .label('id'),
+        question.creationView().fields(),
+        nga.field('choice', 'referenced_list')
+            .targetEntity(nga.entity('choice'))
+            .targetReferenceField('question_id')
+            .targetFields([
+                nga.field('id').isDetailLink(true),
+                nga.field('votes').label('Votes'),
+                nga.field('choice_text').label('Choise')
+            ])
+            .sortField('votes')
+            .sortDir('DESC')
+            .listActions(['edit']),
+    ]);
+                    </code></pre>
+        </section>
 <!-- ####################################################################  -->
 
 			</div>
